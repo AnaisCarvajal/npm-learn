@@ -1,0 +1,25 @@
+{
+  "name": "npm-learn",
+  "version": "1.0.0",
+  "description": "Scanner CLI de seguridad pre-instalación para paquetes npm: detección de typosquatting y CVEs conocidos",
+  "main": "bin/npm-learn.js",
+  "bin": {
+    "npm-learn": "./bin/npm-learn.js"
+  },
+  "scripts": {
+    "start": "node bin/npm-learn.js"
+  },
+  "keywords": [
+    "npm",
+    "security",
+    "supply-chain",
+    "typosquatting",
+    "cve"
+  ],
+  "author": "Anaís Polett Rodríguez Carvajal",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.7"
+  }
+}

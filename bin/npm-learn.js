@@ -124,7 +124,7 @@ async function scanFlow() {
     const packageName = await promptPackageName("Nombre del paquete:");
     await runScan(packageName);
 
-    const next = await menu("¿Qué quieres hacer?", [
+    const next = await menu("Seleccione una opción:", [
       { name: "Escanear otro paquete", value: "scan" },
       { name: "Menú principal", value: "main" },
       { name: "Salir", value: "exit" },
@@ -154,7 +154,7 @@ async function learnFlow() {
     for (const line of topic.body) console.log(line);
     console.log();
 
-    const next = await menu("¿Qué quieres hacer?", [
+    const next = await menu("Seleccione una opción:", [
       { name: "Volver a temas", value: "topics" },
       { name: "Menú principal", value: "main" },
       { name: "Salir", value: "exit" },
@@ -184,7 +184,7 @@ async function quizFlow() {
 
   console.log(chalk.green.bold(`Puntaje final: ${score}/${questions.length}`));
   console.log();
-  const next = await menu("¿Qué quieres hacer?", [
+  const next = await menu("Seleccione una opción:", [
     { name: "Menú principal", value: "main" },
     { name: "Salir", value: "exit" },
   ]);
@@ -195,7 +195,7 @@ async function interactiveMode() {
   while (true) {
     header();
 
-    const action = await menu("¿Qué quieres hacer?", [
+    const action = await menu("Seleccione una opción:", [
       new inquirer.Separator("── Testear ──"),
       { name: "Escanear un paquete", value: "scan" },
       new inquirer.Separator("── Aprender ──"),

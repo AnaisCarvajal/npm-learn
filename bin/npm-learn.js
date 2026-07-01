@@ -7,191 +7,127 @@ inquirer.registerPrompt("list", require("../lib/green-list"));
 const { checkTyposquatting } = require("../lib/typosquat");
 const { fetchPackageMetadata, checkKnownVulnerabilities } = require("../lib/registry-client");
 const { listTopics, getTopic } = require("../lib/learn-content");
+const { questions } = require("../lib/quiz");
 
-process.on("SIGINT", () => { process.exit(0); });
+process.on("SIGINT", () => process.exit(0));
 
-function header(title) {
-  console.log();
-  console.log(chalk.green.bold(`  ${title}`));
-  console.log(chalk.dim("  " + "─".repeat(50)));
+const ASCII_ART = `
+ ⠀⠀⠀⠀⠀⠀⠀⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⣠⣆⡐⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢌⣀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢆⣹⣐⢯⠀⠀⠀⠀⠀⠀⠀⢀⡀⠀⠀⠀⠀⠀⠰⢀⣼⣿⣶⣶⣤⣄⡀⠀⠀
+⠀⢀⠀⠀⣼⣿⣞⣫⠀⠀⠀⠀⠀⠀⠀⠀⠠⢗⡶⣦⣀⡀⣠⣿⣯⡷⣟⣾⣯⡿⣿⡇⠀
+⠴⣱⢾⣼⣽⣿⢛⠅⣀⠀⠀⣀⠀⠀⠀⠀⠀⠀⢈⡛⣽⣟⣿⣰⣯⣷⡿⢉⢱⢻⠜⠁⠀
+⠀⠀⢨⣟⣿⣽⣿⡛⠖⠟⡜⠁⠀⠀⠀⠀⠀⢀⡎⡟⠗⢟⣞⡳⣽⢲⡣⢛⠉⢇⠀⠀⠀
+⠀⠀⠀⣬⣿⡷⣯⢿⣻⣶⣄⡀⠀⠀⠀⠀⠈⠈⠀⠐⠀⢺⠩⠸⢳⠙⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠙⠻⢿⣽⣿⢯⣷⣻⢿⡄⠀⠀⠀⠀⠀⠀⠀⠃⠙⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠳⠴⠏⡙⠛⠿⡝⠛⠁⠀⠀npm-learn ⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢒⣼⣿⣷⣶⣶⣤⣌⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠸⠶⣶⢦⣤⣀⣤⣠⢯⣿⢿⡿⣿⢯⡿⣿⣿⣧⡄⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠄⠀⢻⣺⣽⢿⣯⣟⣯⢯⡙⠏⡙⢡⣭⣹⡚⢣⠀⠀⠀⠀⠀⠀⠀⡀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⣔⣾⡟⣿⡞⣱⡏⡶⠙⡷⠊⠉⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇
+⠀⠀⠀⠀⠀⠀⠀⠀⡠⠞⣵⠋⡋⠀⠑⠉⠐⠐⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇
+⠀⠀⠀⠀⠀⠀⠂⠁⠈⠆⠀⠁⠁⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⠇
+`
+;
+
+function header() {
+  console.clear();
+  console.log(chalk.green(ASCII_ART));
 }
 
 async function menu(message, choices) {
   const { value } = await inquirer.prompt([{
-    type: "list", name: "value", message, prefix: "  ", choices,
+    type: "list", name: "value", message, choices, loop: false, pageSize: 20,
   }]);
   return value;
 }
 
-function createSpinner(text) {
-  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-  let i = 0;
-  const id = setInterval(() => {
-    process.stdout.write(`\r  ${chalk.green(frames[i % frames.length])} ${chalk.dim(text)}`);
-    i++;
-  }, 80);
-  return {
-    succeed(msg) {
-      clearInterval(id);
-      process.stdout.write(`\r  ${chalk.green("✓")} ${msg}\n`);
-    },
-    stop() {
-      clearInterval(id);
-      process.stdout.write(`\r${" ".repeat(text.length + 8)}\r`);
-    },
-  };
+async function promptPackageName(message) {
+  const { packageName } = await inquirer.prompt([{
+    type: "input",
+    name: "packageName",
+    message,
+    validate: (v) => v.trim().length > 0 || "Escribe el nombre de un paquete.",
+  }]);
+  return packageName.trim();
 }
 
-function printWelcome() {
-  console.clear();
-  console.log();
-  console.log(chalk.green([
-" ⠀⠀⠀⠀⠀⠀⠀⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠀⠀⣠⣆⡐⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢌⣀⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠀⢆⣹⣐⢯⠀⠀⠀⠀⠀⠀⠀⢀⡀⠀⠀⠀⠀⠀⠰⢀⣼⣿⣶⣶⣤⣄⡀⠀⠀",
-"⠀⢀⠀⠀⣼⣿⣞⣫⠀⠀⠀⠀⠀⠀⠀⠀⠠⢗⡶⣦⣀⡀⣠⣿⣯⡷⣟⣾⣯⡿⣿⡇⠀",
-"⠴⣱⢾⣼⣽⣿⢛⠅⣀⠀⠀⣀⠀⠀⠀⠀⠀⠀⢈⡛⣽⣟⣿⣰⣯⣷⡿⢉⢱⢻⠜⠁⠀",
-"⠀⠀⢨⣟⣿⣽⣿⡛⠖⠟⡜⠁⠀⠀⠀⠀⠀⢀⡎⡟⠗⢟⣞⡳⣽⢲⡣⢛⠉⢇⠀⠀⠀",
-"⠀⠀⠀⣬⣿⡷⣯⢿⣻⣶⣄⡀⠀⠀⠀⠀⠈⠈⠀⠐⠀⢺⠩⠸⢳⠙⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠙⠻⢿⣽⣿⢯⣷⣻⢿⡄⠀⠀⠀⠀⠀⠀⠀⠃⠙⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠀⠳⠴⠏⡙⠛⠿⡝⠛⠁⠀⠀npm-learn ⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-"      seguridad pre-instalación      ",
-"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢒⣼⣿⣷⣶⣶⣤⣌⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠀⠀⠀⠸⠶⣶⢦⣤⣀⣤⣠⢯⣿⢿⡿⣿⢯⡿⣿⣿⣧⡄⠀⠀⠀⠀⠀⠀⠀⠀",
-"⠀⠀⠀⠀⠀⠀⠀⠄⠀⢻⣺⣽⢿⣯⣟⣯⢯⡙⠏⡙⢡⣭⣹⡚⢣⠀⠀⠀⠀⠀⠀⠀ ",
-"⠀⠀⠀⠀⠀⠀⠀⠀⠀⣔⣾⡟⣿⡞⣱⡏⡶⠙⡷⠊⠉⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀  ",
-"⠀⠀⠀⠀⠀⠀⠀⠀⡠⠞⣵⠋⡋⠀⠑⠉⠐⠐⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀  ",
-"⠀⠀⠀⠀⠀⠀⠂⠁⠈⠆⠀⠁⠁⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀   ",
-  ].join("\n")));
-  console.log();
-  console.log(chalk.dim("  ─────────────────────────────────────"));
-  console.log(chalk.dim("   navegar [flechas] · salir [Ctrl+C]"));
-  console.log(chalk.dim("  ─────────────────────────────────────"));
-  console.log();
-}
+async function runScan(rawInput) {
+  // Reportes de seguridad (OSV.dev, Socket.dev, etc.) listan paquetes como
+  // "npm/nombre-paquete" — ese prefijo de ecosistema no es parte del nombre real.
+  const packageName = rawInput.replace(/^npm\//i, "");
 
-function highlightDiff(query, target) {
-  const maxLen = Math.max(query.length, target.length);
-  let out = "";
-  for (let i = 0; i < maxLen; i++) {
-    const q = query[i] || "";
-    const t = target[i] || "";
-    out += q === t ? chalk.dim(q) : chalk.bgRed.white(q);
-  }
-  return out;
-}
-
-async function runScan(packageName) {
   const [name, version] =
     packageName.includes("@") && !packageName.startsWith("@")
       ? packageName.split("@")
       : [packageName, null];
 
-  const spinner = createSpinner(`Analizando ${name}...`);
   const typoMatches = checkTyposquatting(name);
+
   let resolvedVersion = version;
   let vulns = [];
   let packageExists = true;
+  let wasTakenDown = false;
 
   try {
     if (!resolvedVersion) {
       const meta = await fetchPackageMetadata(name);
       packageExists = !!meta;
-      if (meta) resolvedVersion = meta["dist-tags"]?.latest;
+      if (meta) {
+        resolvedVersion = meta["dist-tags"]?.latest;
+        // Un paquete con metadata pero sin dist-tags fue retirado (unpublished) —
+        // a menudo porque el equipo de seguridad de npm lo bajó por malicioso.
+        wasTakenDown = !resolvedVersion && !!(meta.time && meta.time.unpublished);
+      }
     }
     if (resolvedVersion) vulns = await checkKnownVulnerabilities(name, resolvedVersion);
   } catch (err) {
-    spinner.stop();
-    console.log(chalk.dim(`\n  (sin conexión: ${err.message})`));
+    console.log(chalk.dim(`No se pudo completar la consulta en línea: ${err.message}`));
   }
 
-  spinner.succeed(`${chalk.white(name)}  analizado`);
-
   console.log();
-  console.log(chalk.bold("  [1] Typosquatting") + chalk.dim("  ¿el nombre es lo que crees?"));
+  console.log(chalk.green.bold("Typosquatting:"));
   if (typoMatches.length === 0) {
-    console.log(chalk.green("\n      ✓ Sin coincidencias sospechosas."));
+    console.log(chalk.green("  Sin coincidencias sospechosas."));
   } else {
-    for (const m of typoMatches.slice(0, 3)) {
-      const c = m.riskLevel === "ALTO" ? chalk.red : chalk.yellow;
-      console.log();
-      console.log(c(`      ⚠  riesgo ${m.riskLevel} — se parece a "${m.legitPackage}"`));
-      console.log(`        ${highlightDiff(name, m.legitPackage)}` +
-        chalk.dim(`  (${m.distance} carácter${m.distance > 1 ? "es" : ""})`));
+    for (const m of typoMatches) {
+      console.log(chalk.red(`  Se parece a "${m.legitPackage}" — posible typosquatting.`));
     }
   }
 
   console.log();
-  console.log(chalk.bold("  [2] CVE / Vulnerabilidades conocidas") + chalk.dim("  vía OSV.dev"));
-  if (!packageExists) {
-    console.log(chalk.yellow("\n      ⚠  El paquete no existe en npm."));
-  } else if (!vulns || vulns.length === 0) {
-    console.log(chalk.green("\n      ✓ Sin vulnerabilidades conocidas."));
+  console.log(chalk.green.bold("CVE / Vulnerabilidades conocidas:"));
+  if (wasTakenDown) {
+    console.log(chalk.red("  ⚠ Este paquete fue retirado de npm (unpublished)."));
+    console.log(chalk.red("    Suele ser señal de que el equipo de seguridad de npm lo bajó por malicioso."));
+  } else if (!packageExists) {
+    console.log(chalk.yellow("  El paquete no existe en npm."));
+  } else if (vulns.length === 0) {
+    console.log(chalk.green("  Sin vulnerabilidades conocidas."));
   } else {
-    for (const v of vulns.slice(0, 5)) {
-      console.log();
-      console.log(chalk.red(`      ⚠  ${v.id}`));
-      if (v.summary) console.log(chalk.dim(`         ${v.summary}`));
+    for (const v of vulns) {
+      console.log(chalk.red(`  ${v.id}${v.summary ? " — " + v.summary : ""}`));
     }
-    console.log(chalk.dim("\n      → actualizar a la versión más reciente suele corregir esto."));
   }
 
   console.log();
-  console.log(chalk.bold("  [3] Dependency confusion") + chalk.dim("  · no cubierto en este MVP"));
-  console.log(chalk.bold("  [4] Señales sociotécnicas") + chalk.dim("  · no cubierto en este MVP"));
-
-  const hasHighTypo = typoMatches.some((m) => m.riskLevel === "ALTO");
-  const hasVulns = Array.isArray(vulns) && vulns.length > 0;
-  let verdict;
-  if (hasHighTypo) {
-    verdict = { label: "RIESGO ALTO",   color: chalk.bold.red    };
-  } else if (hasVulns || typoMatches.length > 0) {
-    verdict = { label: "RIESGO MEDIO",  color: chalk.bold.yellow };
-  } else {
-    verdict = { label: "SIN HALLAZGOS", color: chalk.bold.green  };
-  }
-
-  console.log();
-  console.log(chalk.dim("  " + "─".repeat(50)));
-  console.log(`  Veredicto: ${verdict.color(verdict.label)}`);
+  const hayRiesgo = typoMatches.length > 0 || vulns.length > 0 || wasTakenDown;
+  const verdict = hayRiesgo ? chalk.bold.red("RIESGO") : chalk.bold.green("SIN HALLAZGOS");
+  console.log(`Veredicto: ${verdict}`);
   console.log();
 }
 
-const TOPIC_LABELS = {
-  "typosquatting":        "Typosquatting — nombres casi idénticos",
-  "dependency-confusion": "Dependency Confusion — mismo nombre, otro registro",
-  "cve":                  "CVE / Vulnerabilidades conocidas",
-  "supply-chain":         "Supply Chain Attack — panorama general",
-};
-
-async function learnFlow() {
+async function scanFlow() {
   while (true) {
-    console.clear();
-    header("npm-learn learn  ·  temas disponibles");
-    console.log();
+    header();
+    const packageName = await promptPackageName("Nombre del paquete:");
+    await runScan(packageName);
 
-    const key = await menu("¿Qué tema quieres explorar?", [
-      ...listTopics().map((k) => ({ name: "  " + (TOPIC_LABELS[k] || k), value: k })),
-      new inquirer.Separator(),
-      { name: "  ← Volver al menú principal", value: "__back__" },
-    ]);
-
-    if (key === "__back__") return;
-
-    const topic = getTopic(key);
-    console.clear();
-    header(topic.title);
-    console.log();
-    for (const line of topic.body) {
-      console.log(line ? `  ${chalk.white(line)}` : "");
-    }
-    console.log();
-
-    const next = await menu("¿Qué quieres hacer ahora?", [
-      { name: "  Volver a temas",  value: "topics" },
-      { name: "  Menú principal",  value: "main"   },
-      { name: "  Salir",           value: "exit"   },
+    const next = await menu("¿Qué quieres hacer?", [
+      { name: "Escanear otro paquete", value: "scan" },
+      { name: "Menú principal", value: "main" },
+      { name: "Salir", value: "exit" },
     ]);
 
     if (next === "exit") process.exit(0);
@@ -199,93 +135,82 @@ async function learnFlow() {
   }
 }
 
-async function scanFlow() {
+async function learnFlow() {
   while (true) {
-    console.clear();
-    header("npm-learn  ·  escanear paquete");
-    console.log(chalk.dim("\n  Ejemplos: reactt  ·  lodash  ·  express@4.18.2\n"));
+    header();
 
-    const { packageName } = await inquirer.prompt([{
-      type: "input",
-      name: "packageName",
-      message: "Nombre del paquete:",
-      prefix: "  ",
-      validate: (v) => v.trim().length > 0 || "Escribe el nombre de un paquete.",
-    }]);
-
-    await runScan(packageName.trim());
-
-    const next = await menu("¿Qué quieres hacer ahora?", [
-      { name: "  Escanear otro paquete",         value: "scan"  },
-      { name: "  Aprender sobre estos vectores", value: "learn" },
-      { name: "  Menú principal",                value: "main"  },
-      { name: "  Salir",                         value: "exit"  },
+    const key = await menu("Elige un tema:", [
+      ...listTopics().map((k) => ({ name: getTopic(k).title, value: k })),
+      new inquirer.Separator(),
+      { name: "Volver", value: "__back__" },
     ]);
 
-    if (next === "exit")  process.exit(0);
-    if (next === "learn") { await learnFlow(); return; }
-    if (next === "main")  return;
+    if (key === "__back__") return;
+
+    const topic = getTopic(key);
+    header();
+    console.log(chalk.green.bold(topic.title));
+    console.log();
+    for (const line of topic.body) console.log(line);
+    console.log();
+
+    const next = await menu("¿Qué quieres hacer?", [
+      { name: "Volver a temas", value: "topics" },
+      { name: "Menú principal", value: "main" },
+      { name: "Salir", value: "exit" },
+    ]);
+
+    if (next === "exit") process.exit(0);
+    if (next === "main") return;
   }
+}
+
+async function quizFlow() {
+  header();
+  let score = 0;
+
+  for (const q of questions) {
+    const correct = await menu(q.question, q.options.map((o) => ({ name: o.name, value: o.correct })));
+    console.log();
+    if (correct) {
+      score++;
+      console.log(chalk.green("Correcto."));
+    } else {
+      const correctAnswer = q.options.find((o) => o.correct).name;
+      console.log(chalk.red(`Incorrecto. Respuesta correcta: ${correctAnswer}`));
+    }
+    console.log();
+  }
+
+  console.log(chalk.green.bold(`Puntaje final: ${score}/${questions.length}`));
+  console.log();
+  const next = await menu("¿Qué quieres hacer?", [
+    { name: "Menú principal", value: "main" },
+    { name: "Salir", value: "exit" },
+  ]);
+  if (next === "exit") process.exit(0);
 }
 
 async function interactiveMode() {
   while (true) {
-    printWelcome();
+    header();
 
     const action = await menu("¿Qué quieres hacer?", [
-      { name: "  Escanear un paquete",               value: "scan"  },
-      { name: "  Aprender sobre vectores de riesgo",  value: "learn" },
+      new inquirer.Separator("── Testear ──"),
+      { name: "Escanear un paquete", value: "scan" },
+      new inquirer.Separator("── Aprender ──"),
+      { name: "Aprender sobre vectores de riesgo", value: "learn" },
+      new inquirer.Separator("── Practicar ──"),
+      { name: "Examen", value: "quiz" },
       new inquirer.Separator(),
-      { name: "  Salir",                              value: "exit"  },
+      { name: "Salir", value: "exit" },
     ]);
 
-    if (action === "exit")  process.exit(0);
-    if (action === "scan")  await scanFlow();
+    if (action === "exit") process.exit(0);
+    if (action === "scan") await scanFlow();
     if (action === "learn") await learnFlow();
+    if (action === "quiz") await quizFlow();
   }
 }
 
-async function directMode([command, arg]) {
-  if (command === "learn") {
-    if (!arg) {
-      header("npm-learn learn  ·  temas disponibles");
-      for (const key of listTopics()) console.log(`    ${chalk.green(key)}`);
-      console.log(chalk.dim("\n  Uso: npm-learn learn <tema>\n"));
-      return;
-    }
-    const topic = getTopic(arg);
-    if (!topic) {
-      console.log(chalk.red(`\n  No existe el tema "${arg}".`));
-      console.log(chalk.dim(`  Temas disponibles: ${listTopics().join(", ")}\n`));
-      return;
-    }
-    header(topic.title);
-    console.log();
-    for (const line of topic.body) console.log(`  ${line}`);
-    console.log();
-    return;
-  }
-
-  header(`npm-learn  ·  ${command}`);
-  await runScan(command);
-  console.log(chalk.dim("  ¿Quieres entender estos vectores? npm-learn learn\n"));
-}
-
-async function main() {
-  const args = process.argv.slice(2);
-  try {
-    await (args.length === 0 ? interactiveMode() : directMode(args));
-  } catch (err) {
-    if (err.isTtyError) {
-      console.error(chalk.red("\n  Error: no hay terminal interactivo."));
-      console.error(chalk.dim("  Uso directo: npm-learn <paquete>  |  npm-learn learn\n"));
-      process.exit(1);
-    }
-    if (err.message?.includes("User force closed") || err.message?.includes("readline")) {
-      process.exit(0);
-    }
-    throw err;
-  }
-}
-
-main();
+interactiveMode();

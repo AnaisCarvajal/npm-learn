@@ -3,7 +3,6 @@
 
 const chalk = require("chalk");
 const inquirer = require("inquirer");
-inquirer.registerPrompt("list", require("../lib/green-list"));
 const { checkTyposquatting } = require("../lib/typosquat");
 const { fetchPackageMetadata, checkKnownVulnerabilities } = require("../lib/registry-client");
 const { listTopics, getTopic } = require("../lib/learn-content");
@@ -40,6 +39,7 @@ async function menu(message, choices) {
   const { value } = await inquirer.prompt([{
     type: "list", name: "value", message, choices, loop: false, pageSize: 20,
   }]);
+  if (value === "exit") process.exit(0);
   return value;
 }
 
@@ -54,8 +54,6 @@ async function promptPackageName(message) {
 }
 
 async function runScan(rawInput) {
-  // Reportes de seguridad (OSV.dev, Socket.dev, etc.) listan paquetes como
-  // "npm/nombre-paquete" — ese prefijo de ecosistema no es parte del nombre real.
   const packageName = rawInput.replace(/^npm\//i, "");
 
   const [name, version] =
@@ -76,9 +74,8 @@ async function runScan(rawInput) {
       packageExists = !!meta;
       if (meta) {
         resolvedVersion = meta["dist-tags"]?.latest;
-        // Un paquete con metadata pero sin dist-tags fue retirado (unpublished) —
-        // a menudo porque el equipo de seguridad de npm lo bajó por malicioso.
-        wasTakenDown = !resolvedVersion && !!(meta.time && meta.time.unpublished);
+        const fueRetirado = Boolean(meta.time && meta.time.unpublished);
+        wasTakenDown = !resolvedVersion && fueRetirado;
       }
     }
     if (resolvedVersion) vulns = await checkKnownVulnerabilities(name, resolvedVersion);
@@ -91,24 +88,20 @@ async function runScan(rawInput) {
   if (typoMatches.length === 0) {
     console.log(chalk.green("  Sin coincidencias sospechosas."));
   } else {
-    for (const m of typoMatches) {
-      console.log(chalk.red(`  Se parece a "${m.legitPackage}" — posible typosquatting.`));
-    }
+    typoMatches.forEach((m) => console.log(chalk.red(`  Se parece a "${m.legitPackage}" — posible typosquatting.`)));
   }
 
   console.log();
   console.log(chalk.green.bold("CVE / Vulnerabilidades conocidas:"));
   if (wasTakenDown) {
-    console.log(chalk.red("  ⚠ Este paquete fue retirado de npm (unpublished)."));
+    console.log(chalk.red("  Este paquete fue retirado de npm (unpublished)."));
     console.log(chalk.red("    Suele ser señal de que el equipo de seguridad de npm lo bajó por malicioso."));
   } else if (!packageExists) {
     console.log(chalk.yellow("  El paquete no existe en npm."));
   } else if (vulns.length === 0) {
     console.log(chalk.green("  Sin vulnerabilidades conocidas."));
   } else {
-    for (const v of vulns) {
-      console.log(chalk.red(`  ${v.id}${v.summary ? " — " + v.summary : ""}`));
-    }
+    vulns.forEach((v) => console.log(chalk.red(`  ${v.id}${v.summary ? " — " + v.summary : ""}`)));
   }
 
   console.log();
@@ -130,7 +123,6 @@ async function scanFlow() {
       { name: "Salir", value: "exit" },
     ]);
 
-    if (next === "exit") process.exit(0);
     if (next === "main") return;
   }
 }
@@ -151,7 +143,7 @@ async function learnFlow() {
     header();
     console.log(chalk.green.bold(topic.title));
     console.log();
-    for (const line of topic.body) console.log(line);
+    topic.body.forEach((line) => console.log(line));
     console.log();
 
     const next = await menu("Seleccione una opción:", [
@@ -160,7 +152,6 @@ async function learnFlow() {
       { name: "Salir", value: "exit" },
     ]);
 
-    if (next === "exit") process.exit(0);
     if (next === "main") return;
   }
 }
@@ -184,11 +175,10 @@ async function quizFlow() {
 
   console.log(chalk.green.bold(`Puntaje final: ${score}/${questions.length}`));
   console.log();
-  const next = await menu("Seleccione una opción:", [
+  await menu("Seleccione una opción:", [
     { name: "Menú principal", value: "main" },
     { name: "Salir", value: "exit" },
   ]);
-  if (next === "exit") process.exit(0);
 }
 
 async function interactiveMode() {
@@ -206,7 +196,6 @@ async function interactiveMode() {
       { name: "Salir", value: "exit" },
     ]);
 
-    if (action === "exit") process.exit(0);
     if (action === "scan") await scanFlow();
     if (action === "learn") await learnFlow();
     if (action === "quiz") await quizFlow();

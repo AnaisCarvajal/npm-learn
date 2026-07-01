@@ -1,2 +1,0 @@
-cd /Users/anais/Documents/Github/npm-learn
-node bin/npm-learn.js
